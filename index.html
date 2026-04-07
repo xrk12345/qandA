@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>白板 & 广场 & 答案</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  body {
+    overflow: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+  }
+
+  /* 磨砂玻璃按钮 */
+  .glass-btn {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #333;
+    padding: 12px 24px;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 15px;
+    z-index: 10;
+    transition: all 0.2s ease;
+  }
+  .glass-btn:hover {
+    background: rgba(255, 255, 255, 0.4);
+    transform: translateY(-1px);
+  }
+
+  /* 页面切换 */
+  .page {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.7s ease;
+    background: #fff;
+  }
+  .page.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* 白板页 */
+  #board {
+    background: #f9f9f9;
+    position: relative;
+  }
+  #toSquare {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+  }
+  #boardContent {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+  .board-item {
+    position: absolute;
+    max-width: 220px;
+    padding: 12px 16px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    font-size: 15px;
+    line-height: 1.6;
+    color: #333;
+    cursor: move;
+    user-select: none;
+    z-index: 5;
+  }
+
+  /* 广场页 */
+  .topic-wrap {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 10;
+    width: 90vw;
+    max-width: 600px;
+  }
+  #keywordInputs {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .kw-input {
+    width: 120px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 16px;
+    background: #f8f8f8;
+  }
+  .btn-group {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 32px;
+  }
+  #question {
+    font-size: 24px;
+    color: #222;
+    padding: 20px;
+    min-height: 60px;
+    background: #f8f8f8;
+    border-radius: 12px;
+    line-height: 1.5;
+  }
+
+  /* 答案页 */
+  .answer-wrap {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90vw;
+    max-width: 700px;
+    padding: 32px;
+    background: #f8f8f8;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    cursor: pointer;
+    z-index: 5;
+  }
+  #answerQuestion {
+    font-size: 22px;
+    color: #222;
+    margin-bottom: 24px;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+  #answerContent {
+    font-size: 18px;
+    color: #444;
+    line-height: 1.8;
+    white-space: pre-line;
+  }
+
+  #backToSquare {
+    position: fixed;
+    left: 24px;
+    bottom: 24px;
+  }
+  #backToBoard {
+    position: fixed;
+    left: 24px;
+    top: 24px;
+  }
+
+  /* 通用浮动评论框（白板+答案页共用） */
+  .floating-comment {
+    position: absolute;
+    width: 280px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    padding: 16px;
+    z-index: 9999;
+    display: none;
+  }
+  .floating-comment textarea {
+    width: 100%;
+    height: 80px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    resize: none;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .comment-flex {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .comment-flex button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+</style>
+</head>
+
+<body>
+
+<!-- 白板 -->
+<div class="page show" id="board">
+  <div id="boardContent"></div>
+  <button class="glass-btn" id="toSquare">前往广场</button>
+</div>
+
+<!-- 广场 -->
+<div class="page" id="square">
+  <div class="topic-wrap">
+    <div id="keywordInputs">
+      <input class="kw-input" type="text" placeholder="关键词1" id="A" readonly>
+      <input class="kw-input" type="text" placeholder="关键词2" id="B" readonly>
+      <input class="kw-input" type="text" placeholder="关键词3" id="C" readonly>
+    </div>
+    <div class="btn-group">
+      <button class="glass-btn" id="generateBtn">提问</button>
+      <button class="glass-btn" id="toAnswerBtn">答案</button>
+    </div>
+    <div id="question"></div>
+  </div>
+</div>
+
+<!-- 答案 -->
+<div class="page" id="answer">
+  <div class="answer-wrap" id="answerArea">
+    <div id="answerQuestion"></div>
+    <div id="answerContent"></div>
+  </div>
+
+  <button class="glass-btn" id="backToSquare">返回广场</button>
+  <button class="glass-btn" id="backToBoard">← 回到白板</button>
+</div>
+
+<!-- 浮动评论框（白板+答案页共用） -->
+<div class="floating-comment" id="floatComment">
+  <textarea id="commentText" placeholder="说点什么..."></textarea>
+  <div class="comment-flex">
+    <button class="glass-btn" id="cCancel">取消</button>
+    <button class="glass-btn" id="cSubmit">发布</button>
+  </div>
+</div>
+
+<script>
+  const board = document.getElementById('board');
+  const square = document.getElementById('square');
+  const answer = document.getElementById('answer');
+
+  const boardContent = document.getElementById('boardContent');
+  const toSquare = document.getElementById('toSquare');
+
+  const A = document.getElementById('A');
+  const B = document.getElementById('B');
+  const C = document.getElementById('C');
+  const generateBtn = document.getElementById('generateBtn');
+  const toAnswerBtn = document.getElementById('toAnswerBtn');
+  const question = document.getElementById('question');
+
+  const answerArea = document.getElementById('answerArea');
+  const answerQuestion = document.getElementById('answerQuestion');
+  const answerContent = document.getElementById('answerContent');
+  const backToSquare = document.getElementById('backToSquare');
+  const backToBoard = document.getElementById('backToBoard');
+
+  const floatComment = document.getElementById('floatComment');
+  const commentText = document.getElementById('commentText');
+  const cCancel = document.getElementById('cCancel');
+  const cSubmit = document.getElementById('cSubmit');
+
+  let keywords = { kw1: '', kw2: '', kw3: '' };
+  let currentQuestion = '';
+
+  // ==============================
+  // 白板拖动 + 点击空白创建卡片
+  // ==============================
+  let dragItem = null;
+  let offsetX = 0, offsetY = 0;
+
+  board.addEventListener('click', (e) => {
+    // 排除按钮点击
+    if (e.target === toSquare || e.target.closest('#floatComment')) return;
+
+    // 先检查是否点击了现有卡片（避免重复创建）
+    if (e.target.closest('.board-item')) return;
+
+    const kw1 = prompt('关键词 1：');
+    if (!kw1?.trim()) return;
+    const kw2 = prompt('关键词 2：');
+    if (!kw2?.trim()) return;
+    const kw3 = prompt('关键词 3：');
+    if (!kw3?.trim()) return;
+
+    keywords.kw1 = kw1.trim();
+    keywords.kw2 = kw2.trim();
+    keywords.kw3 = kw3.trim();
+
+    const el = document.createElement('div');
+    el.className = 'board-item';
+    el.innerHTML = `关键词1：${keywords.kw1}<br>关键词2：${keywords.kw2}<br>关键词3：${keywords.kw3}`;
+    el.style.left = e.clientX + 'px';
+    el.style.top = e.clientY + 'px';
+    boardContent.appendChild(el);
+
+    el.addEventListener('mousedown', (e) => {
+      dragItem = el;
+      offsetX = e.clientX - el.offsetLeft;
+      offsetY = e.clientY - el.offsetTop;
+      el.style.zIndex = 100;
+    });
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragItem) return;
+    dragItem.style.left = (e.clientX - offsetX) + 'px';
+    dragItem.style.top = (e.clientY - offsetY) + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (dragItem) {
+      dragItem.style.zIndex = 5;
+      dragItem = null;
+    }
+  });
+
+  // ==============================
+  // 白板 → 广场
+  // ==============================
+  toSquare.addEventListener('click', () => {
+    if (!keywords.kw1 || !keywords.kw2 || !keywords.kw3) {
+      alert('请先在白板点击创建3个关键词！');
+      return;
+    }
+    board.classList.remove('show');
+    setTimeout(() => {
+      A.value = keywords.kw1;
+      B.value = keywords.kw2;
+      C.value = keywords.kw3;
+      square.classList.add('show');
+    }, 400);
+  });
+
+  // ==============================
+  // 25个问题，全覆盖！
+  // ==============================
+  generateBtn.addEventListener('click', () => {
+    const a = A.value.trim();
+    const b = B.value.trim();
+    const c = C.value.trim();
+    if (!a || !b || !c) { alert('关键词不完整！'); return; }
+
+    const questions = [
+      `100只${a}围攻1只${b}，谁能赢？`,
+      `100只${a}正面硬刚1只${b}，谁更强？`,
+      `100只${a}突袭1只${b}，能一波带走吗？`,
+      `100只${a}对战1只${b}死斗到全灭，谁赢？`,
+      `100只${a}穿越到${b}的世界，能活多久？`,
+      `100只${a}闯入${b}地盘，会被秒杀吗？`,
+      `100只${a}在${b}主场作战，能撑多久？`,
+      `100只${a} vs 100只${b}抢${c}，谁能抢到？`,
+      `100只${a}和100只${b}为${c}混战，谁赢？`,
+      `${c}被藏起来，${a}和${b}谁先找到？`,
+      `1只${a}单挑100只${b}，能反杀吗？`,
+      `1只${a}被100只${b}包围，能突围吗？`,
+      `1只${a}冲脸100只${b}，能清场吗？`,
+      `100只${a}和${b}合作，能搞定${c}吗？`,
+      `100只${a}给${b}打工，${c}会崩盘吗？`,
+      `${a}、${b}、${c}三方混战，谁活到最后？`,
+      `${a}、${b}、${c}擂台赛，谁是冠军？`,
+      `${a}、${b}、${c}生死局只活一个，是谁？`,
+      `100只${a}能把${b}关进${c}里吗？`,
+      `100只${a}围堵${b}，能塞进${c}吗？`,
+      `${a}、${b}、${c}谁战斗力最离谱？`,
+      `${a}、${b}、${c}单挑谁是战力天花板？`,
+      `100只${a}和1只${b}比吃${c}，谁更猛？`,
+      `${a}、${b}、${c}开战，谁战术最阴险？`,
+      `${a}、${b}、${c}组队，谁最拖后腿？`
+    ];
+
+    const i = Math.floor(Math.random() * questions.length);
+    currentQuestion = questions[i];
+    question.textContent = currentQuestion;
+  });
+
+  // ==============================
+  // 广场 → 答案
+  // ==============================
+  toAnswerBtn.addEventListener('click', () => {
+    if (!currentQuestion) { alert('请先生成问题！'); return; }
+    square.classList.remove('show');
+    setTimeout(() => {
+      answer.classList.add('show');
+      answerQuestion.textContent = currentQuestion;
+      answerContent.textContent = generateFunnyAnswer(A.value, B.value, C.value, currentQuestion);
+    }, 400);
+  });
+
+  backToSquare.addEventListener('click', () => {
+    answer.classList.remove('show');
+    setTimeout(() => square.classList.add('show'), 400);
+  });
+
+  backToBoard.addEventListener('click', () => {
+    answer.classList.remove('show');
+    setTimeout(() => board.classList.add('show'), 400);
+  });
+
+  // ==============================
+  // 🔥 核心功能：点击任意位置弹出评论框（跟随鼠标）
+  // ==============================
+  // 答案页：点击任意区域（包括空白）
+  answer.addEventListener('click', (e) => {
+    if (e.target.closest('#floatComment') || e.target.closest('.glass-btn')) return;
+    showCommentAtPosition(e.clientX, e.clientY);
+  });
+
+  // 白板页：点击任意区域（包括空白、卡片）
+  board.addEventListener('click', (e) => {
+    if (e.target === toSquare || e.target.closest('#floatComment') || e.target.closest('.board-item')) return;
+    showCommentAtPosition(e.clientX, e.clientY);
+  });
+
+  // 统一显示评论框的方法
+  function showCommentAtPosition(x, y) {
+    floatComment.style.left = x + 'px';
+    floatComment.style.top = y + 'px';
+    floatComment.style.display = 'block';
+    commentText.value = '';
+    commentText.focus();
+  }
+
+  // 评论框按钮
+  cCancel.addEventListener('click', () => {
+    floatComment.style.display = 'none';
+  });
+
+  cSubmit.addEventListener('click', () => {
+    const t = commentText.value.trim();
+    if (t) {
+      alert('评论成功：' + t);
+      floatComment.style.display = 'none';
+    } else {
+      alert('写点东西再发吧');
+    }
+  });
+
+  // 点击页面其他地方关闭评论框
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#floatComment')) {
+      floatComment.style.display = 'none';
+    }
+  });
+
+  // ==============================
+  // 🔥 25个对应答案，战斗拉满，每个都够长
+  // ==============================
+  function generateFunnyAnswer(a, b, c, question) {
+    const ans = [
+      {
+        q: "围攻1只",
+        a: `100只${a}一拥而上，瞬间形成密不透风的包围网，连天空都被遮住。${b}刚想发力突围，就被前排${a}死死咬住四肢，后排不断扑上撕咬、干扰，技能根本放不出来。短短几十秒，${b}体力耗尽，彻底失去反抗能力，被人海战术彻底碾压，${a}群完胜。`
+      },
+      {
+        q: "正面硬刚",
+        a: `正面硬刚的话，100只${a}完全不虚！它们排成密集阵型同步冲锋，气势震天，${b}的每一次攻击都只能打中少数目标，根本挡不住源源不断的攻势。${a}前赴后继，用数量换输出，越打越猛，${b}再强也撑不住这种无休止的消耗，最后只能落败。`
+      },
+      {
+        q: "突袭",
+        a: `突袭战100只${a}胜率极高！趁着${b}毫无防备，它们从四面八方闪电般扑出，瞬间贴脸输出。${b}反应再快，也挡不住这种全方位、无死角的突然袭击，被控到动弹不得，血量直线暴跌，大概率被一波直接带走，连反抗机会都没有。`
+      },
+      {
+        q: "死斗到全灭",
+        a: `死斗不退的情况下，100只${a}会用生命堆出胜利！它们完全不顾伤亡，疯狂扑上去换伤害，${b}每秒钟都在承受成吨输出。就算${b}放倒一片，立刻又有新的${a}补上，直到${b}体力、耐力全部枯竭，最终倒在无穷无尽的攻势下。`
+      },
+      {
+        q: "穿越到",
+        a: `100只${a}穿越到${b}的世界，处境会非常危险。这里环境陌生、规则不同，到处都是未知威胁。${a}群很快陷入混乱，阵型溃散，再加上${b}世界的原生存在虎视眈眈，它们撑不了太久就会节节败退，最终全军覆没，很难活下来。`
+      },
+      {
+        q: "闯入地盘",
+        a: `${a}贸然闯入${b}的地盘，基本等于送上门！${b}在自己地盘里状态拉满，感知、力量、速度全部提升，还占有地形优势。100只${a}刚进来就会被盯上，然后遭到精准、凶狠的反击，被快速清理，几乎没有胜算。`
+      },
+      {
+        q: "主场作战",
+        a: `在${b}的主场，100只${a}撑不了几个回合。${b}熟悉每一处地形，可以利用环境埋伏、拉扯、消耗，${a}则处处受限、行动笨拙。${b}打几下就躲，再突然杀出，${a}被耍得团团转，体力快速下降，很快就会全线崩溃。`
+      },
+      {
+        q: "抢",
+        a: `抢${c}这种混战，100只${a}更有优势！它们配合默契、行动迅速，一部分负责牵制100只${b}，一部分直奔${c}，抢到就立刻撤退包围守护。${b}就算战力不弱，也挡不住${a}分工明确的抢宝战术，最终只能眼睁睁看着${c}被夺走。`
+      },
+      {
+        q: "为",
+        a: `为了${c}全面开战，100只${a}会赢到最后！它们数量占优、悍不畏死，冲锋、包围、掩护一气呵成，100只${b}虽然勇猛，但架不住${a}一波接一波的猛攻。打着打着，${b}阵型被冲散，伤亡越来越大，彻底失去争夺${c}的能力。`
+      },
+      {
+        q: "先找到",
+        a: `找隐藏的${c}，${a}的效率远高于${b}！${a}数量多，可以分散地毯式搜索，不放过任何角落，速度极快。${b}只能单打独斗，慢慢排查，节奏完全跟不上。等${b}才找一小片区域，${a}早就把${c}找到并牢牢守住了。`
+      },
+      {
+        q: "单挑100只",
+        a: `1只${a}单挑100只${b}，完全有机会极限反杀！${a}凭借超高机动性和爆发力，不断游走拉扯，逐个击破，不让${b}形成包围。${b}人多反而互相碍手碍脚，${a}抓准机会一套爆发带走一片，慢慢蚕食，最后轻松赢下对局。`
+      },
+      {
+        q: "被100只包围",
+        a: `1只${a}被100只${b}包围，突围成功率很高！${a}不跟对方硬拼，集中力量朝一个方向猛冲，利用速度和爆发力冲破缺口，再立刻拉开距离。${b}虽然多，但反应跟不上${a}的节奏，只能看着${a}撕开包围圈顺利逃走。`
+      },
+      {
+        q: "冲脸100只",
+        a: `1只${a}直接冲脸100只${b}，真的能清场！${a}一开全力，范围伤害拉满，一招就能放倒一大片，${b}根本近不了身。前排被秒、后排恐慌，阵型瞬间炸穿，${a}如入无人之境，横冲直撞，把100只${b}彻底打崩。`
+      },
+      {
+        q: "合作",
+        a: `100只${a}和${b}合作，搞定${c}非常轻松！${b}负责正面扛伤、压制威胁，100只${a}负责包围、辅助、补伤害，分工完美。不管${c}有多难搞，在这种强力组合面前都撑不住，很快就能顺利拿下。`
+      },
+      {
+        q: "打工",
+        a: `100只${a}给${b}打工，${c}项目大概率直接崩盘！${a}数量多但摸鱼、甩锅、走神是常态，干活慢吞吞，内讧第一名。简单任务都能被搞复杂，${b}再怎么指挥也压不住这群摆烂选手，${c}只会越做越乱，最后彻底搞砸。`
+      },
+      {
+        q: "三方混战",
+        a: `${a}、${b}、${c}三方大乱斗，最后活下来的一定是${a}！${a}最聪明，一开始不硬拼，等${b}和${c}打得两败俱伤、体力耗尽，再进场收割。偷袭、拉扯、包夹样样精通，把另外两家耍得团团转，稳稳赢到最后。`
+      },
+      {
+        q: "擂台赛",
+        a: `一局定胜负的擂台赛，冠军肯定是${a}！${a}力量、速度、反应全都在线，打法又稳又狠，还特别会抓对手破绽。${b}力量猛但笨拙，${c}技巧不错但硬度不够，都被${a}精准克制，一轮交手就被拿下，毫无悬念。`
+      },
+      {
+        q: "生死局只活一个",
+        a: `生死局只能活一个，活下来的绝对是${a}！${a}综合战力最强，能打能扛能跑，续航和爆发都拉满。${b}和${c}要么攻击单一，要么防御不足，在${a}全面的实力面前根本撑不住，最终只能被淘汰，${a}成为唯一幸存者。`
+      },
+      {
+        q: "关进",
+        a: `100只${a}真的能用战术把${b}关进${c}！一部分${a}正面挑衅引诱，把${b}引到${c}入口，另一部分从侧面、后方包夹封锁，把${b}往里面推。${b}被缠得动弹不得，又挡不住这么多${a}的合力，最后真的被关进去。`
+      },
+      {
+        q: "围堵",
+        a: `100只${a}围堵${b}，绝对能把它塞进${c}！它们分工明确，有的抱头、有的压身、有的推脚，连拉带拽、连挤带塞。${b}再怎么挣扎，也架不住人多势众，一顿混乱又搞笑的操作后，硬生生被塞进${c}里，场面离谱又搞笑。`
+      },
+      {
+        q: "最离谱",
+        a: `战斗力最离谱、最不讲道理的绝对是${a}！${a}输出爆炸、防御超厚、速度拉满，技能还特别无赖，打着打着就能突然爆发，越打越强。${b}和${c}在${a}这种不讲道理的战力面前，完全不够看，被压得死死的。`
+      },
+      {
+        q: "战力天花板",
+        a: `单挑战力天花板，毫无疑问是${a}！${a}攻防一体、意识拉满，不管是正面硬刚还是拉扯偷袭都无敌。${b}空有力量没技巧，${c}有技巧没硬度，都不是${a}对手。${a}一招一式都压制对面，稳稳站在战力最顶端。`
+      },
+      {
+        q: "比吃",
+        a: `比吃${c}，100只${a}的战斗力碾压1只${b}！它们一拥而上埋头狂炫，嘴巴不停、节奏拉满，干饭速度快到看不清，一大份${c}瞬间就被清空。${b}才吃几口，转头就只剩空盘子，完全被这恐怖的干饭速度吓到。`
+      },
+      {
+        q: "战术最阴险",
+        a: `开战之后，战术最阴险、最会玩心眼的就是${a}！${a}从不正面硬拼，擅长埋伏、偷袭、挑拨离间、绕后切后排，打着打着就把对手耍得晕头转向。${b}太耿直，${c}太冲动，全都被${a}的阴招玩崩。`
+      },
+      {
+        q: "拖后腿",
+        a: `组队冒险，最容易拖后腿的一定是${b}！${b}性格冲动、不听指挥，经常乱开怪引来一堆危险，还容易迷路、掉链子。${a}稳重靠谱，${c}灵活细心，只有${b}天天搞出意外，全程需要别人救，坑惨队友。`
+      }
+    ];
+
+    for (let item of ans) {
+      if (question.includes(item.q)) {
+        return item.a;
+      }
+    }
+
+    return `不管怎么比，${a}都稳赢。${a}的战斗力、智商、战术全都在线，打架又猛又会玩，还总能抓住对手的弱点疯狂输出。${b}和${c}一起上都很难占到便宜，最后只能被${a}稳稳压制，输掉这场对决。`;
+  }
+</script>
+</body>
+</html>
