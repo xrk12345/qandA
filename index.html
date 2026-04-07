@@ -14,7 +14,6 @@
     overflow: hidden;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
   }
-
   /* 磨砂玻璃按钮 */
   .glass-btn {
     background: rgba(255, 255, 255, 0.25);
@@ -33,7 +32,6 @@
     background: rgba(255, 255, 255, 0.4);
     transform: translateY(-1px);
   }
-
   /* 页面切换 + 背景图设置 */
   .page {
     position: fixed;
@@ -50,21 +48,19 @@
     opacity: 1;
     pointer-events: auto;
   }
-
   /* 白板页背景：baiban.png */
   #board {
     background-image: url('baiban.png');
   }
-
   /* 广场页 + 答案页背景：caoping.png */
   #square, #answer {
     background-image: url('caoping.png');
   }
-
   #toSquare {
     position: fixed;
     right: 24px;
     bottom: 24px;
+    z-index: 20;
   }
   #boardContent {
     position: absolute;
@@ -72,6 +68,7 @@
     height: 100%;
     top: 0;
     left: 0;
+    z-index: 5;
   }
   .board-item {
     position: absolute;
@@ -86,9 +83,8 @@
     color: #333;
     cursor: move;
     user-select: none;
-    z-index: 5;
+    z-index: 6;
   }
-
   .topic-wrap {
     position: fixed;
     top: 50%;
@@ -134,7 +130,6 @@
     border-radius: 12px;
     line-height: 1.5;
   }
-
   .answer-wrap {
     position: fixed;
     top: 50%;
@@ -163,7 +158,6 @@
     line-height: 1.8;
     white-space: pre-line;
   }
-
   #backToSquare {
     position: fixed;
     left: 24px;
@@ -174,7 +168,6 @@
     left: 24px;
     top: 24px;
   }
-
   /* 浮动评论框 */
   .floating-comment {
     position: absolute;
@@ -209,14 +202,11 @@
   }
 </style>
 </head>
-
 <body>
-
 <div class="page show" id="board">
   <div id="boardContent"></div>
   <button class="glass-btn" id="toSquare">前往广场</button>
 </div>
-
 <div class="page" id="square">
   <div class="topic-wrap">
     <div id="keywordInputs">
@@ -231,17 +221,14 @@
     <div id="question"></div>
   </div>
 </div>
-
 <div class="page" id="answer">
   <div class="answer-wrap" id="answerArea">
     <div id="answerQuestion"></div>
     <div id="answerContent"></div>
   </div>
-
   <button class="glass-btn" id="backToSquare">返回广场</button>
   <button class="glass-btn" id="backToBoard">← 回到白板</button>
 </div>
-
 <div class="floating-comment" id="floatComment">
   <textarea id="commentText" placeholder="说点什么..."></textarea>
   <div class="comment-flex">
@@ -249,67 +236,82 @@
     <button class="glass-btn" id="cSubmit">发布</button>
   </div>
 </div>
-
 <script>
   const board = document.getElementById('board');
   const square = document.getElementById('square');
   const answer = document.getElementById('answer');
-
   const boardContent = document.getElementById('boardContent');
   const toSquare = document.getElementById('toSquare');
-
   const A = document.getElementById('A');
   const B = document.getElementById('B');
   const C = document.getElementById('C');
   const generateBtn = document.getElementById('generateBtn');
   const toAnswerBtn = document.getElementById('toAnswerBtn');
   const question = document.getElementById('question');
-
   const answerArea = document.getElementById('answerArea');
   const answerQuestion = document.getElementById('answerQuestion');
   const answerContent = document.getElementById('answerContent');
   const backToSquare = document.getElementById('backToSquare');
   const backToBoard = document.getElementById('backToBoard');
-
   const floatComment = document.getElementById('floatComment');
   const commentText = document.getElementById('commentText');
   const cCancel = document.getElementById('cCancel');
   const cSubmit = document.getElementById('cSubmit');
-
   let keywords = { kw1: '', kw2: '', kw3: '' };
   let currentQuestion = '';
-
   let dragItem = null;
   let offsetX = 0, offsetY = 0;
 
-  // 白板点击事件
-  board.addEventListener('click', (e) => {
-    if (e.target === toSquare || e.target.closest('#floatComment') || e.target.closest('.board-item')) {
-      if (!e.target.closest('.board-item') && e.target !== toSquare && !e.target.closest('#floatComment')) {
-        showCommentAtPosition(e.clientX, e.clientY);
-      }
+  // ✅ 修复1：把点击事件绑定到boardContent（实际可点击区域），而非board
+  boardContent.addEventListener('click', (e) => {
+    // ✅ 修复2：修正评论框判断逻辑，只有点击评论框内才触发评论，否则弹关键词输入
+    if (e.target.closest('#floatComment')) {
+      showCommentAtPosition(e.clientX, e.clientY);
+      return;
+    }
+    // 排除关键词卡片和按钮的点击
+    if (e.target.closest('.board-item') || e.target === toSquare || e.target.closest('.glass-btn')) {
       return;
     }
 
+    // ✅ 修复3：增加prompt兼容性，确保浏览器不拦截
+    window.focus();
+    // 录入关键词1
     const kw1 = prompt('关键词 1：');
-    if (!kw1?.trim()) return;
+    if (!kw1?.trim()) {
+      alert('关键词1不能为空！');
+      return;
+    }
+    // 录入关键词2
     const kw2 = prompt('关键词 2：');
-    if (!kw2?.trim()) return;
+    if (!kw2?.trim()) {
+      alert('关键词2不能为空！');
+      return;
+    }
+    // 录入关键词3
     const kw3 = prompt('关键词 3：');
-    if (!kw3?.trim()) return;
+    if (!kw3?.trim()) {
+      alert('关键词3不能为空！');
+      return;
+    }
 
+    // 保存关键词
     keywords.kw1 = kw1.trim();
     keywords.kw2 = kw2.trim();
     keywords.kw3 = kw3.trim();
 
+    // ✅ 修复4：修正卡片位置，让卡片居中显示在鼠标位置
     const el = document.createElement('div');
     el.className = 'board-item';
     el.innerHTML = `关键词1：${keywords.kw1}<br>关键词2：${keywords.kw2}<br>关键词3：${keywords.kw3}`;
-    el.style.left = e.clientX + 'px';
-    el.style.top = e.clientY + 'px';
+    // 卡片偏移，避免鼠标遮挡
+    el.style.left = (e.clientX - 110) + 'px';
+    el.style.top = (e.clientY - 60) + 'px';
     boardContent.appendChild(el);
 
+    // 卡片拖动事件
     el.addEventListener('mousedown', (e) => {
+      e.stopPropagation(); // 阻止拖动时触发白板点击
       dragItem = el;
       offsetX = e.clientX - el.offsetLeft;
       offsetY = e.clientY - el.offsetTop;
@@ -317,19 +319,20 @@
     });
   });
 
+  // 拖动事件
   document.addEventListener('mousemove', (e) => {
     if (!dragItem) return;
     dragItem.style.left = (e.clientX - offsetX) + 'px';
     dragItem.style.top = (e.clientY - offsetY) + 'px';
   });
-
   document.addEventListener('mouseup', () => {
     if (dragItem) {
-      dragItem.style.zIndex = 5;
+      dragItem.style.zIndex = 6;
       dragItem = null;
     }
   });
 
+  // 前往广场
   toSquare.addEventListener('click', () => {
     if (!keywords.kw1 || !keywords.kw2 || !keywords.kw3) {
       alert('请先在白板点击创建3个关键词！');
@@ -344,15 +347,13 @@
     }, 400);
   });
 
+  // 生成问题
   generateBtn.addEventListener('click', () => {
     const a = A.value.trim();
     const b = B.value.trim();
     const c = C.value.trim();
     if (!a || !b || !c) { alert('关键词不完整！'); return; }
-
-    // 🔥 这里我给你多加了 10 个全新问题，总共 35 个
     const questions = [
-      // 原来的 25 个
       `100只${a}围攻1只${b}，谁能赢？`,
       `100只${a}正面硬刚1只${b}，谁更强？`,
       `100只${a}突袭1只${b}，能一波带走吗？`,
@@ -378,8 +379,6 @@
       `100只${a}和1只${b}比吃${c}，谁更猛？`,
       `${a}、${b}、${c}开战，谁战术最阴险？`,
       `${a}、${b}、${c}组队，谁最拖后腿？`,
-
-      // ✅ 新增 10 个问题（风格完全统一）
       `${a}和${b}同时保护${c}，谁更靠谱？`,
       `${a}和${b}比赛逃跑，谁跑得更快？`,
       `100只${a}守着${c}，${b}能偷到手吗？`,
