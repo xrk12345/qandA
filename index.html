@@ -14,6 +14,7 @@
     overflow: hidden;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
   }
+
   /* 磨砂玻璃按钮 */
   .glass-btn {
     background: rgba(255, 255, 255, 0.25);
@@ -32,6 +33,7 @@
     background: rgba(255, 255, 255, 0.4);
     transform: translateY(-1px);
   }
+
   /* 页面切换 + 背景图设置 */
   .page {
     position: fixed;
@@ -48,19 +50,21 @@
     opacity: 1;
     pointer-events: auto;
   }
+
   /* 白板页背景：baiban.png */
   #board {
     background-image: url('baiban.png');
   }
+
   /* 广场页 + 答案页背景：caoping.png */
   #square, #answer {
     background-image: url('caoping.png');
   }
+
   #toSquare {
     position: fixed;
     right: 24px;
     bottom: 24px;
-    z-index: 20;
   }
   #boardContent {
     position: absolute;
@@ -68,7 +72,6 @@
     height: 100%;
     top: 0;
     left: 0;
-    z-index: 5;
   }
   .board-item {
     position: absolute;
@@ -83,8 +86,9 @@
     color: #333;
     cursor: move;
     user-select: none;
-    z-index: 6;
+    z-index: 5;
   }
+
   .topic-wrap {
     position: fixed;
     top: 50%;
@@ -130,6 +134,7 @@
     border-radius: 12px;
     line-height: 1.5;
   }
+
   .answer-wrap {
     position: fixed;
     top: 50%;
@@ -158,6 +163,7 @@
     line-height: 1.8;
     white-space: pre-line;
   }
+
   #backToSquare {
     position: fixed;
     left: 24px;
@@ -168,6 +174,7 @@
     left: 24px;
     top: 24px;
   }
+
   /* 浮动评论框 */
   .floating-comment {
     position: absolute;
@@ -202,11 +209,14 @@
   }
 </style>
 </head>
+
 <body>
+
 <div class="page show" id="board">
   <div id="boardContent"></div>
   <button class="glass-btn" id="toSquare">前往广场</button>
 </div>
+
 <div class="page" id="square">
   <div class="topic-wrap">
     <div id="keywordInputs">
@@ -221,14 +231,17 @@
     <div id="question"></div>
   </div>
 </div>
+
 <div class="page" id="answer">
   <div class="answer-wrap" id="answerArea">
     <div id="answerQuestion"></div>
     <div id="answerContent"></div>
   </div>
+
   <button class="glass-btn" id="backToSquare">返回广场</button>
   <button class="glass-btn" id="backToBoard">← 回到白板</button>
 </div>
+
 <div class="floating-comment" id="floatComment">
   <textarea id="commentText" placeholder="说点什么..."></textarea>
   <div class="comment-flex">
@@ -236,82 +249,67 @@
     <button class="glass-btn" id="cSubmit">发布</button>
   </div>
 </div>
+
 <script>
   const board = document.getElementById('board');
   const square = document.getElementById('square');
   const answer = document.getElementById('answer');
+
   const boardContent = document.getElementById('boardContent');
   const toSquare = document.getElementById('toSquare');
+
   const A = document.getElementById('A');
   const B = document.getElementById('B');
   const C = document.getElementById('C');
   const generateBtn = document.getElementById('generateBtn');
   const toAnswerBtn = document.getElementById('toAnswerBtn');
   const question = document.getElementById('question');
+
   const answerArea = document.getElementById('answerArea');
   const answerQuestion = document.getElementById('answerQuestion');
   const answerContent = document.getElementById('answerContent');
   const backToSquare = document.getElementById('backToSquare');
   const backToBoard = document.getElementById('backToBoard');
+
   const floatComment = document.getElementById('floatComment');
   const commentText = document.getElementById('commentText');
   const cCancel = document.getElementById('cCancel');
   const cSubmit = document.getElementById('cSubmit');
+
   let keywords = { kw1: '', kw2: '', kw3: '' };
   let currentQuestion = '';
+
   let dragItem = null;
   let offsetX = 0, offsetY = 0;
 
-  // ✅ 修复1：把点击事件绑定到boardContent（实际可点击区域），而非board
-  boardContent.addEventListener('click', (e) => {
-    // ✅ 修复2：修正评论框判断逻辑，只有点击评论框内才触发评论，否则弹关键词输入
-    if (e.target.closest('#floatComment')) {
-      showCommentAtPosition(e.clientX, e.clientY);
-      return;
-    }
-    // 排除关键词卡片和按钮的点击
-    if (e.target.closest('.board-item') || e.target === toSquare || e.target.closest('.glass-btn')) {
+  // 白板点击事件
+  board.addEventListener('click', (e) => {
+    if (e.target === toSquare || e.target.closest('#floatComment') || e.target.closest('.board-item')) {
+      if (!e.target.closest('.board-item') && e.target !== toSquare && !e.target.closest('#floatComment')) {
+        showCommentAtPosition(e.clientX, e.clientY);
+      }
       return;
     }
 
-    // ✅ 修复3：增加prompt兼容性，确保浏览器不拦截
-    window.focus();
-    // 录入关键词1
     const kw1 = prompt('关键词 1：');
-    if (!kw1?.trim()) {
-      alert('关键词1不能为空！');
-      return;
-    }
-    // 录入关键词2
+    if (!kw1?.trim()) return;
     const kw2 = prompt('关键词 2：');
-    if (!kw2?.trim()) {
-      alert('关键词2不能为空！');
-      return;
-    }
-    // 录入关键词3
+    if (!kw2?.trim()) return;
     const kw3 = prompt('关键词 3：');
-    if (!kw3?.trim()) {
-      alert('关键词3不能为空！');
-      return;
-    }
+    if (!kw3?.trim()) return;
 
-    // 保存关键词
     keywords.kw1 = kw1.trim();
     keywords.kw2 = kw2.trim();
     keywords.kw3 = kw3.trim();
 
-    // ✅ 修复4：修正卡片位置，让卡片居中显示在鼠标位置
     const el = document.createElement('div');
     el.className = 'board-item';
     el.innerHTML = `关键词1：${keywords.kw1}<br>关键词2：${keywords.kw2}<br>关键词3：${keywords.kw3}`;
-    // 卡片偏移，避免鼠标遮挡
-    el.style.left = (e.clientX - 110) + 'px';
-    el.style.top = (e.clientY - 60) + 'px';
+    el.style.left = e.clientX + 'px';
+    el.style.top = e.clientY + 'px';
     boardContent.appendChild(el);
 
-    // 卡片拖动事件
     el.addEventListener('mousedown', (e) => {
-      e.stopPropagation(); // 阻止拖动时触发白板点击
       dragItem = el;
       offsetX = e.clientX - el.offsetLeft;
       offsetY = e.clientY - el.offsetTop;
@@ -319,20 +317,19 @@
     });
   });
 
-  // 拖动事件
   document.addEventListener('mousemove', (e) => {
     if (!dragItem) return;
     dragItem.style.left = (e.clientX - offsetX) + 'px';
     dragItem.style.top = (e.clientY - offsetY) + 'px';
   });
+
   document.addEventListener('mouseup', () => {
     if (dragItem) {
-      dragItem.style.zIndex = 6;
+      dragItem.style.zIndex = 5;
       dragItem = null;
     }
   });
 
-  // 前往广场
   toSquare.addEventListener('click', () => {
     if (!keywords.kw1 || !keywords.kw2 || !keywords.kw3) {
       alert('请先在白板点击创建3个关键词！');
@@ -347,13 +344,15 @@
     }, 400);
   });
 
-  // 生成问题
   generateBtn.addEventListener('click', () => {
     const a = A.value.trim();
     const b = B.value.trim();
     const c = C.value.trim();
     if (!a || !b || !c) { alert('关键词不完整！'); return; }
+
+    // 🔥 这里我给你多加了 10 个全新问题，总共 35 个
     const questions = [
+      // 原来的 25 个
       `100只${a}围攻1只${b}，谁能赢？`,
       `100只${a}正面硬刚1只${b}，谁更强？`,
       `100只${a}突袭1只${b}，能一波带走吗？`,
@@ -379,6 +378,8 @@
       `100只${a}和1只${b}比吃${c}，谁更猛？`,
       `${a}、${b}、${c}开战，谁战术最阴险？`,
       `${a}、${b}、${c}组队，谁最拖后腿？`,
+
+      // ✅ 新增 10 个问题（风格完全统一）
       `${a}和${b}同时保护${c}，谁更靠谱？`,
       `${a}和${b}比赛逃跑，谁跑得更快？`,
       `100只${a}守着${c}，${b}能偷到手吗？`,
@@ -388,22 +389,7 @@
       `100只${a}设陷阱，${b}会中招吗？`,
       `${a}和${b}比赛耐力，谁撑得更久？`,
       `${a}、${b}、${c}一起冒险，谁最冷静？`,
-      `1只${a}守住路口，100只${b}能冲过去吗？`,
-      `${a}和${b}在${c}面前比赛吹牛，谁更靠谱？`,
-      `${a}和${b}在${c}面前摆烂，谁更会摆烂？`,
-      `${a}和${b}被${c}老师点名，谁更慌？`,
-      `${a}和${b}比赛吃${c}，谁更快？`,
-      `${a}和${b}在${c}里玩躲猫猫，谁藏得更好？`,
-      `${a}和${b}为${c}吵架，谁能吵赢？`,
-      `${a}和${b}在${c}面前耍赖，谁更没底线？`,
-      `${a}和${b}赶${c}作业，谁速度更快？`,
-      `${a}和${b}在${c}床上比赛赖床，谁能赢？`,
-      `${a}和${b}被${c}追打，谁跑得更绝？`,
-      `${a}忽悠${b}骗${c}，能成功吗？`,
-      `${a}和${b}在${c}面前比赛整活，谁更会整？`,
-      `${a}和${b}在${c}队伍里当卧底，谁更像？`,
-      `${a}和${b}向${c}卖惨，谁更让人信？`,
-      `${a}和${b}在${c}面前比赛嘴硬，谁最硬？`
+      `1只${a}守住路口，100只${b}能冲过去吗？`
     ];
 
     const i = Math.floor(Math.random() * questions.length);
@@ -609,66 +595,6 @@
       {
         q: "守住路口",
         a: `1只${a}守住路口，100只${b}很难冲过去。路口窄，${b}人多反而挤在一起，没法一起上，只能一个个排队冲。${a}只要守住关键点，挡住前面几个，后面的就过不来，耗到最后，${b}也只能放弃冲锋。`
-      },
-      {
-        q: "比赛吹牛",
-        a: `比赛吹牛毫无疑问是${a}获胜！${a}的口才简直出神入化，上能吹到九天揽月，下能编到离奇玄幻，不管多离谱的故事都能说得有理有据、声情并茂，连自己都能骗过去。${b}只会说一些平淡无奇的小事，气场和脑洞完全不是一个级别，听着${a}吹牛皮直接听得一愣一愣的，最后只能甘拜下风，彻底认输。`
-      },
-      {
-        q: "一起摆烂",
-        a: `比摆烂功力，${a}才是真正的摆烂之王！${a}往床上一躺就能进入灵魂出窍状态，手机不玩、事情不做、消息不回，主打一个一动不动、万事随缘，连呼吸都觉得费劲。${b}虽然也想摆烂，但心里总是焦虑不安，一会儿看时间一会儿想做事，根本摆不彻底。跟${a}比摆烂，${b}还差得太远，这局${a}稳赢不输。`
-      },
-      {
-        q: "被老师点名",
-        a: `被老师突然点名，${b}当场慌到手脚发抖、大脑空白，连自己名字都快忘了，支支吾吾说不出一句完整话。而${a}就算完全没听课，也能面不改色、淡定自若，随便扯几句都显得有理有据，甚至还能假装思考拖延时间，心理素质强得可怕。两者一对比，${a}的临场反应碾压${b}，这局完胜。`
-      },
-      {
-        q: "比赛干饭",
-        a: `比赛干饭速度，${a}简直是干饭机器！一端上碗就开启疯狂吸入模式，筷子快得只剩残影，一口接一口完全不停歇，一碗饭几秒钟就见底，汤都喝得干干净净。${b}还在慢慢细嚼慢咽，刚吃没几口，${a}已经把整桌横扫干净，速度和饭量都恐怖如斯。${b}看着空空的盘子，只能输得心服口服。`
-      },
-      {
-        q: "玩躲猫猫",
-        a: `玩躲猫猫，${a}是顶级隐藏大师！专门挑最隐蔽、最意想不到的位置藏身，缩在里面一动不动，连呼吸都放轻，完美融入环境，就算从眼前经过都发现不了。${b}藏的地方特别明显，随便一找就暴露，找了半天连${a}的影子都摸不着。最后时间结束，${a}稳稳获胜，隐藏能力拉满。`
-      },
-      {
-        q: "吵架",
-        a: `吵架斗嘴，${a}从来没输过！语速快、逻辑强、句句戳重点，不骂人却能把人噎得说不出话，还能边吵边冷静分析，气场全开。${b}吵着吵着就急眼脸红，脑子一片空白，只会重复几句话，越吵越没底气。最后被${a}怼得哑口无言、心态爆炸，只能狼狈败退，完全不是对手。`
-      },
-      {
-        q: "耍赖",
-        a: `比耍赖皮，${a}的脸皮厚到无敌！不管有没有理，都能胡搅蛮缠、死不承认，就算证据摆在眼前也能面不改色地颠倒黑白，耍赖耍得理直气壮。${b}耍赖只会生硬硬地狡辩，稍微被质疑就心虚脸红，跟${a}这种专业选手比差太远。${a}主打一个我不尴尬，尴尬的就是别人，轻松赢下这局。`
-      },
-      {
-        q: "赶作业",
-        a: `赶作业速度，${a}直接封神！不到最后一刻绝不动笔，一到交作业瞬间爆发神力，笔速快到看不清，字迹虽然潦草但写得飞快，一页作业几分钟就搞定，效率高得吓人。${b}磨磨蹭蹭、写写停停，一会儿发呆一会儿喝水，半天写不出几行。在赶作业这块，${a}是天生的高手，${b}根本比不过。`
-      },
-      {
-        q: "比赛赖床",
-        a: `比赛赖床，${a}是当之无愧的赖床之神！只要钻进被窝，就算闹钟炸了、别人喊破喉咙，都能一动不动继续睡，能多躺一秒是一秒，和被窝锁得死死的。${b}虽然也想赖，但稍微被催几下就撑不住起床，意志力一点都不坚定。论赖床功底，${a}碾压${b}，谁也叫不醒一个装睡的${a}。`
-      },
-      {
-        q: "被追打",
-        a: `被人追打时，${a}的逃跑能力拉满！瞬间爆发全部速度，走位风骚、拐弯灵活，懂得利用障碍物甩开对手，连滚带爬都要跑，求生欲强到爆表。${b}跑没几步就气喘吁吁、体力不支，姿势笨拙又难看，很快就被追上。${a}一溜烟跑得无影无踪，${b}只能在后面叹气，根本追不上。`
-      },
-      {
-        q: "忽悠",
-        a: `论忽悠能力，${a}一出马就没对手！一张嘴能把黑的说成白的，把小事吹成大事，语气诚恳、表情认真，让人听着不由自主就相信。${b}心思单纯、脑子转得慢，很容易就被绕进去，被忽悠得晕头转向，就算被卖了可能还帮着数钱。${a}忽悠技巧炉火纯青，这局轻松完胜。`
-      },
-      {
-        q: "比赛整活",
-        a: `比赛整活整活，${a}是天生的整活大师！脑洞超大、创意拉满，各种骚操作层出不穷，一出手就是名场面，又搞笑又吸睛，全场目光都被吸引。${b}整活只会生硬模仿，动作尴尬又无聊，毫无看点。不管是整活创意还是节目效果，${a}都碾压${b}，成为全场最亮眼的存在。`
-      },
-      {
-        q: "当卧底",
-        a: `当卧底隐藏身份，${a}演技炸裂、心思缜密，表面配合演戏，内心冷静算计，一点破绽都不露，把所有人都骗过去。${b}一当卧底就紧张心虚，表情僵硬、说话反常，很容易就被人看穿身份，根本藏不住。论卧底能力，${a}沉着冷静、演技一流，${b}相差太远，这局${a}稳赢。`
-      },
-      {
-        q: "卖惨",
-        a: `比赛卖惨博同情，${a}是影帝级别！表情委屈、声音哽咽，随便说几句都声泪俱下、惹人心疼，让人看了就忍不住心软想帮忙。${b}卖惨只会生硬硬地装哭，一看就特别假，毫无感染力，根本没人同情。${a}卖惨逼真到离谱，情绪感染力拉满，轻松赢下这局比赛。`
-      },
-      {
-        q: "比赛嘴硬",
-        a: `比谁更嘴硬，${a}永远不会认输！就算明明知道自己错了，也会死撑到底、死不承认，语气坚定、理直气壮，就算被打脸也绝不松口。${b}嘴硬撑不了一会儿，稍微被质疑几句就破防承认，心态一点都不稳定。${a}嘴硬功底深不可测，主打一个死不认输，这局完胜${b}。`
       }
     ];
 
